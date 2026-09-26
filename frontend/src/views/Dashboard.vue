@@ -25,6 +25,9 @@
         </tr>
       </tbody>
     </table>
+    <footer class="page-foot">
+      <span v-if="errorMessage" class="error-text">{{ errorMessage }}</span>
+    </footer>
   </section>
 </template>
 
@@ -40,15 +43,16 @@ type Overview = {
 
 const cards = ref<Overview['cards']>([])
 const moduleRows = ref<Overview['modules']>([])
+const errorMessage = ref('')
 
 onMounted(async () => {
   try {
     const payload = await fetchJson<Overview>('/api/overview')
     cards.value = payload.cards
     moduleRows.value = payload.modules
-  } catch {
-    cards.value = [{"label": "业务模块", "value": 0}, {"label": "今日新增", "value": 0}]
-    moduleRows.value = [{"name": "泊位计划", "created": 0, "pending": 0, "abnormal": 0}, {"name": "船舶档案", "created": 0, "pending": 0, "abnormal": 0}, {"name": "航次管理", "created": 0, "pending": 0, "abnormal": 0}, {"name": "岸桥作业", "created": 0, "pending": 0, "abnormal": 0}, {"name": "装卸任务", "created": 0, "pending": 0, "abnormal": 0}, {"name": "堆场管理", "created": 0, "pending": 0, "abnormal": 0}, {"name": "集装箱档案", "created": 0, "pending": 0, "abnormal": 0}, {"name": "堆存记录", "created": 0, "pending": 0, "abnormal": 0}, {"name": "闸口通行", "created": 0, "pending": 0, "abnormal": 0}, {"name": "集卡调度", "created": 0, "pending": 0, "abnormal": 0}, {"name": "理货作业", "created": 0, "pending": 0, "abnormal": 0}, {"name": "残损登记", "created": 0, "pending": 0, "abnormal": 0}, {"name": "单证处理", "created": 0, "pending": 0, "abnormal": 0}, {"name": "堆存计费", "created": 0, "pending": 0, "abnormal": 0}, {"name": "引航拖轮", "created": 0, "pending": 0, "abnormal": 0}, {"name": "安全监督", "created": 0, "pending": 0, "abnormal": 0}, {"name": "货主档案", "created": 0, "pending": 0, "abnormal": 0}, {"name": "作业结算", "created": 0, "pending": 0, "abnormal": 0}]
+  } catch (error) {
+    // 不用假数据占位：接口不通时明说原因，避免把"全是零"当成真实数据
+    errorMessage.value = `运营概览加载失败：${error instanceof Error ? error.message : '未知错误'}。请确认后端已启动（make dev 会一并拉起）。`
   }
 })
 </script>

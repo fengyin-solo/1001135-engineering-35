@@ -1,3 +1,4 @@
-fastapi>=0.110
-uvicorn[standard]>=0.29
-pydantic>=2.6
+# 版本已锁定，与 backend/.venv 中实际安装的一致；升级时同步更新本文件与 README
+fastapi==0.141.1
+uvicorn[standard]==0.54.0
+pydantic==2.13.5

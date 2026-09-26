@@ -5,6 +5,48 @@
 这是一个前后端分离的管理平台：前端 Vue 3 + Vite + TypeScript，后端 FastAPI（Python）。
 两边各自独立启动，前端 dev server 已关掉自动打开页面，启动后按终端打印的地址手工打开。
 
+## 环境要求
+
+- Python 3.11+（后端依赖版本已锁定在 `backend/requirements.txt`）
+- Node.js 20+（前端依赖版本锁定在 `frontend/package-lock.json`）
+
+## 一条命令跑起来
+
+```bash
+make dev        # 等价于 python3 scripts/dev.py
+```
+
+这条命令会依次完成：
+
+1. **装依赖**：后端建 `.venv` 并 `pip install`，前端 `npm install`。
+   装不上时会打印可能的原因（网络/代理/镜像源、Python 或 Node 版本）并询问是否重试；
+   安装是幂等的，修好后重跑命令也可以。
+2. **探端口**：后端从 8000、前端从 5173 开始探测，被占用就顺延到下一个可用端口，
+   实际使用的端口会打印出来（前端代理会自动指向实际的后端端口）。
+3. **起服务并自检**：同时拉起前后端，等后端 `/api/health` 通过后打印访问地址与数据概况。
+   `Ctrl+C` 一次停掉两个进程。
+
+启动后打开终端里打印的前端地址（默认 `http://127.0.0.1:5173/`）即可看到页面，
+运营概览的数字来自同一份数据文件，与各模块列表一致。
+
+## 本地数据
+
+- 数据放在 SQLite 文件 `backend/data/app.db`（可用环境变量 `APP_DB_PATH` 改位置）。
+- 首次启动自动灌入示例数据；**重复起服务不会重复塞数**——某个模块已有数据就跳过。
+- 想重置数据：停掉服务后执行 `make reset-data`（或手动删掉数据文件），下次启动重新播种。
+- 数据文件与前端构建产物 `frontend/dist` 分属两棵目录树，互不影响。
+
+## 构建产物
+
+```bash
+make build      # 前端构建到 frontend/dist
+make clean      # 只删构建产物，不动数据与依赖
+```
+
+`frontend/dist` 存在时，后端会直接托管它（未匹配的 GET 路径回退到 `index.html`，
+刷新不会 404），此时访问后端地址即可打开页面；dev server 与构建产物读同一份数据，
+两种打开方式看到的数字一致。
+
 ## 目录结构
 
 ```text
@@ -17,21 +59,23 @@
 ├── backend/                  FastAPI（Python） 后端
 │   ├── app/routers/          每个业务模块一组接口
 │   ├── app/services/         业务规则与状态流转
-│   └── app/store.py          内存数据仓库与示例数据
-├── .gitignore
+│   ├── app/store.py          SQLite 数据仓库（读缓存、写落盘）
+│   ├── app/ports.py          端口探测（被占用时顺延）
+│   └── data/                 本地数据文件（首次启动自动生成）
+├── scripts/dev.py            一条命令的本地启动链
+├── .env.example              可调的环境变量说明
 └── docker-compose.yml
 ```
 
-## 启动
+## 分开启动（调试单个服务时用）
 
 ### 后端
 
 ```bash
-cd backend
-python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
-./run.sh
+cd backend && ./run.sh
 ```
 
+`run.sh` 会装依赖、探测端口（8000 被占用就顺延并打印）后起服务。
 健康检查：`curl http://127.0.0.1:8000/api/health`
 
 ### 前端
@@ -43,7 +87,8 @@ npm run dev
 ```
 
 前端默认监听 `http://127.0.0.1:5173/`，dev server 不会自动打开浏览器，
-需要自己访问。`/api` 由 vite 代理到后端 `http://127.0.0.1:8000`。
+需要自己访问。`/api` 由 vite 代理到后端，后端端口不是 8000 时用
+`VITE_PROXY_TARGET=http://127.0.0.1:<端口> npm run dev` 指定。
 
 ## 业务模块
 
@@ -74,3 +119,4 @@ npm run dev
   `backend/app/routers/<模块>.py`，业务规则在 `backend/app/services/<模块>.py`。
 - 列表接口统一返回 `{ items, total, page, size }`，动作接口统一返回 `{ ok, message }`。
 - 状态流转只允许在 `app/services` 里改，路由层不做业务判断。
+- 数据读写统一走 `app/store.py`：读用 `rows`/`find`，写用 `add`/`save`（写会同步落盘）。
