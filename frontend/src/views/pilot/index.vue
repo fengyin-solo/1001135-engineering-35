@@ -66,6 +66,7 @@
 import { onMounted, ref } from 'vue'
 
 import { request } from '@/api/client'
+import { fetchModuleStats } from '@/api/overview'
 
 type Row = Record<string, string | number | null>
 
@@ -73,7 +74,7 @@ const ENDPOINT = '/api/pilot'
 const columns = ["作业编号", "作业类型", "关联船舶", "拖轮名称", "引航员", "计划时间", "实际时间", "作业状态"]
 const actions = ["指派作业", "开始作业", "确认完成"]
 const statuses = ["待指派", "已指派", "作业中", "已完成"]
-const stats = [{"label": "待指派作业", "value": 0}, {"label": "作业中拖轮", "value": 0}, {"label": "本月引航艘次", "value": 0}]
+const stats = ref([{"label": "待指派作业", "value": 0}, {"label": "作业中拖轮", "value": 0}, {"label": "本月引航艘次", "value": 0}])
 
 const rows = ref<Row[]>([])
 const total = ref(0)
@@ -105,6 +106,7 @@ async function runAction(action: string, row: Row) {
       throw new Error('引航拖轮动作未生效，请稍后重试')
     }
     await reload()
+    await loadStats()
   } catch (error) {
     errorMessage.value = error instanceof Error ? error.message : '引航拖轮操作失败'
   }
@@ -126,5 +128,19 @@ async function reload() {
   }
 }
 
-onMounted(reload)
+async function loadStats() {
+  const summary = await fetchModuleStats(ENDPOINT)
+  if (!summary) return
+  const labels = stats.value.map((item) => item.label)
+  stats.value = [
+    { label: labels[0] ?? '今日新增', value: summary.created },
+    { label: labels[1] ?? '待处理', value: summary.pending },
+    { label: labels[2] ?? '异常量', value: summary.abnormal },
+  ]
+}
+
+onMounted(() => {
+  void reload()
+  void loadStats()
+})
 </script>

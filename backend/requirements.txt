@@ -1,3 +1,4 @@
-fastapi>=0.110
-uvicorn[standard]>=0.29
-pydantic>=2.6
+# 锁定版本：本地、CI、Docker 装出来的依赖完全一致，不再靠口头约定
+fastapi==0.141.1
+uvicorn[standard]==0.54.0
+pydantic==2.13.5

@@ -85,3 +85,7 @@ desktop.ini
 *.db
 *.pid
 *.seed
+
+# 本地运行期产物（端口记录、日志、SQLite 数据目录）
+.runtime/
+backend/data/

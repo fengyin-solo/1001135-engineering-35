@@ -66,6 +66,7 @@
 import { onMounted, ref } from 'vue'
 
 import { request } from '@/api/client'
+import { fetchModuleStats } from '@/api/overview'
 
 type Row = Record<string, string | number | null>
 
@@ -73,7 +74,7 @@ const ENDPOINT = '/api/damage'
 const columns = ["残损编号", "关联箱号", "残损类型", "残损部位", "责任方", "发现时间", "登记人员", "残损状态"]
 const actions = ["确认定责", "提交闭环", "挂起记录"]
 const statuses = ["待定责", "已定责", "处理中", "已闭环", "已挂起"]
-const stats = [{"label": "待定责记录", "value": 0}, {"label": "处理中残损", "value": 0}, {"label": "本月闭环数", "value": 0}]
+const stats = ref([{"label": "待定责记录", "value": 0}, {"label": "处理中残损", "value": 0}, {"label": "本月闭环数", "value": 0}])
 
 const rows = ref<Row[]>([])
 const total = ref(0)
@@ -105,6 +106,7 @@ async function runAction(action: string, row: Row) {
       throw new Error('残损登记动作未生效，请稍后重试')
     }
     await reload()
+    await loadStats()
   } catch (error) {
     errorMessage.value = error instanceof Error ? error.message : '残损登记操作失败'
   }
@@ -126,5 +128,19 @@ async function reload() {
   }
 }
 
-onMounted(reload)
+async function loadStats() {
+  const summary = await fetchModuleStats(ENDPOINT)
+  if (!summary) return
+  const labels = stats.value.map((item) => item.label)
+  stats.value = [
+    { label: labels[0] ?? '今日新增', value: summary.created },
+    { label: labels[1] ?? '待处理', value: summary.pending },
+    { label: labels[2] ?? '异常量', value: summary.abnormal },
+  ]
+}
+
+onMounted(() => {
+  void reload()
+  void loadStats()
+})
 </script>

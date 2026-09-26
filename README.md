@@ -3,7 +3,51 @@
 面向船舶靠泊、集装箱装卸、堆场堆存、闸口进出与理货结算的一体化港口作业调度后台。
 
 这是一个前后端分离的管理平台：前端 Vue 3 + Vite + TypeScript，后端 FastAPI（Python）。
-两边各自独立启动，前端 dev server 已关掉自动打开页面，启动后按终端打印的地址手工打开。
+本地运行是一条链：一条命令装依赖、起前后端、自检端口和数据，不需要任何口头约定。
+
+## 环境与版本
+
+- Python ≥ 3.10（开发用 3.11 验证）、Node.js ≥ 18（开发用 20 验证）
+- 后端依赖锁定在 `backend/requirements.txt`（精确版本）
+- 前端依赖锁定在 `frontend/package-lock.json`（已提交，Docker 里用 `npm ci` 复现）
+
+## 一条命令跑起来
+
+```bash
+make dev
+```
+
+这条命令依次完成：
+
+1. **装依赖**：后端建 `.venv` 并按锁定版本安装，前端 `npm install`；
+   装不上时给出可读的原因说明，并当场询问是否重试。
+2. **起后端**：默认从 8000 端口起，被占用时自动顺延到下一个可用端口并打印出来。
+3. **数据自检**：逐模块核对「列表接口统计」与「运营概览」的数字，对不上会直接报错退出。
+4. **起前端**：默认从 5173 端口起（被占用时 Vite 自动顺延并打印），
+   `/api` 代理到上一步确定的实际后端端口。
+
+启动成功后终端会打印前后端地址、数据文件位置，按 `Ctrl+C` 前后端一起退出。
+依赖已装好时可跳过安装步骤：`SKIP_INSTALL=1 make dev`。
+
+## 数据说明
+
+- 本地数据放在 SQLite 文件 `backend/data/app.sqlite3`（可用 `APP_DB_PATH` 覆盖）。
+- 首次启动自动生成示例数据；**重复启动不会重复灌数据**，启动日志会说明本次是
+  「已生成示例数据」还是「已加载本地数据文件」。
+- 页面上的新增、状态流转会实时落盘：刷新页面、重启服务，看到的数字都一样。
+- 想回到初始示例数据：`make reset`（清空本地数据，下次启动重新生成）。
+
+## 常用命令
+
+| 命令 | 作用 |
+| --- | --- |
+| `make dev` | 一条链：装依赖 → 起后端 → 数据自检 → 起前端 |
+| `make install` | 只装依赖（失败给可读说明，可交互重试） |
+| `make backend` / `make frontend` | 单独起后端 / 前端 |
+| `make smoke` | 对正在运行的服务做数据一致性自检 |
+| `make build` | 构建：前端产物在 `frontend/dist/`，与本地运行互不影响 |
+| `make clean` | 清理构建产物与运行期临时文件（保留本地数据） |
+| `make reset` | 清空本地数据，下次启动重新生成示例数据 |
 
 ## 目录结构
 
@@ -11,39 +55,19 @@
 .
 ├── frontend/                 Vue 3 + Vite + TypeScript 前端
 │   ├── src/views/            每个业务模块一个页面
-│   ├── src/api/              统一请求封装
+│   ├── src/api/              统一请求封装与概览数据
 │   ├── src/stores/           会话与筛选状态
-│   └── vite.config.ts        dev server 配置（open: false）
+│   └── vite.config.ts        dev server 配置（open: false，代理可用 VITE_PROXY_TARGET 覆盖）
 ├── backend/                  FastAPI（Python） 后端
 │   ├── app/routers/          每个业务模块一组接口
 │   ├── app/services/         业务规则与状态流转
-│   └── app/store.py          内存数据仓库与示例数据
-├── .gitignore
+│   ├── app/store.py          数据仓库（启动时加载或生成示例数据）
+│   ├── app/db.py             SQLite 落盘
+│   └── data/                 本地数据文件（运行后生成，不入库）
+├── scripts/                  安装、启动、端口探测、数据自检脚本
+├── Makefile                  make dev 一条链入口
 └── docker-compose.yml
 ```
-
-## 启动
-
-### 后端
-
-```bash
-cd backend
-python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
-./run.sh
-```
-
-健康检查：`curl http://127.0.0.1:8000/api/health`
-
-### 前端
-
-```bash
-cd frontend
-npm install
-npm run dev
-```
-
-前端默认监听 `http://127.0.0.1:5173/`，dev server 不会自动打开浏览器，
-需要自己访问。`/api` 由 vite 代理到后端 `http://127.0.0.1:8000`。
 
 ## 业务模块
 
@@ -67,6 +91,15 @@ npm run dev
 | 安全监督 | `safety` | 安全检查 | 检查编号、检查区域、检查类型 |
 | 货主档案 | `customer` | 货主 | 客户编码、客户名称、客户类型 |
 | 作业结算 | `settle` | 结算单 | 结算单号、结算对象、结算周期 |
+
+## 常见问题
+
+- **端口被占用**：后端、前端都会自动顺延到下一个可用端口，并在终端打印实际地址；
+  也可以用 `APP_PORT` / `FRONTEND_PORT` 指定起始端口。
+- **依赖装不上**：`make install` 会打印常见原因（网络、代理、镜像源）并询问是否重试；
+  持续失败时先确认能访问 PyPI 与 npm registry。
+- **页面数字和接口对不上**：运行 `make smoke`，它会逐模块指出对不上的数字。
+- **想清空重来**：`make reset` 后重新 `make dev`。
 
 ## 约定
 
